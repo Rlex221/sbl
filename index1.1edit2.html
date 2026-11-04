@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StreamFlix - Movies & TV Series</title>
+  
+  <!-- Tailwind CSS & FontAwesome -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Media Engines -->
+  <script src="https://unpkg.com/mux.js/dist/mux.min.js"></script>
+  <script src="https://unpkg.com/shaka-player@latest/dist/shaka-player.compiled.js"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://unpkg.com/hls.js@latest/dist/hls.min.js"></script>
+
+  <style>
+    :root {
+      --primary-color: #e50914;
+      --bg-dark: #0f0f0f;
+      --card-bg: #1f1f1f;
+      --accent-glow: rgba(229, 9, 20, 0.3);
+      --card-min-width: 160px;
+      --card-gap: 16px;
+      --card-padding: 20px;
+    }
+
+    body { 
+      background: var(--bg-dark); 
+      color: white; 
+      font-family: 'Poppins', 'Pyidaungsu', sans-serif; 
+      margin: 0; 
+      min-height: 100vh;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+
+    /* --- Header Bar Fixed at Top --- */
+    header { 
+      position: fixed; 
+      top: 0; 
+      left: 0; 
+      width: 100%; 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      padding: 8px 4%; 
+      background: rgba(18, 18, 18, 0.98); 
+      backdrop-filter: blur(10px); 
+      z-index: 1000; 
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      box-sizing: border-box;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .logo { font-size: 22px; font-weight: 700; color: #e50914; letter-spacing: 1px; cursor: pointer; flex-shrink: 0; }
+    .nav-links { list-style: none; display: flex; gap: 15px; margin: 0; padding: 0; }
+    .nav-links a { text-decoration: none; color: #b3b3b3; font-weight: 500; transition: color 0.3s; cursor: pointer; font-size: 14px; }
+    .nav-links a:hover, .nav-links a.active { color: #ffffff; border-bottom: 2px solid #e50914; padding-bottom: 4px; }
+
+    .search-box { 
+      display: flex; 
+      align-items: center; 
+      background: #202020; 
+      border-radius: 20px; 
+      padding: 4px 12px; 
+      width: 100%;
+      max-width: 240px;
+      box-sizing: border-box;
+      border: 1px solid rgba(255,255,255,0.1);
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .search-box input { 
+      background: transparent; 
+      border: none; 
+      outline: none; 
+      color: #fff; 
+      padding-left: 8px; 
+      font-size: 14px; 
+      width: 100%; 
+    }
+    .search-box i { color: #b3b3b3; flex-shrink: 0; }
+
+    @media (max-width: 768px) {
+      header {
+        padding: 8px 3%;
+      }
+      .search-box {
+        max-width: 100%;
+        order: 3;
+        margin-top: 4px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+    }
+
+    /* Hide scrollbar for Horizontal Scroll */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* --- Container & Cards --- */
+    #main-content {
+      padding: 20px 4%;
+      margin-top: 100px;
+    }
+
+    @media (min-width: 769px) {
+      #main-content {
+        margin-top: 70px;
+      }
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      margin-top: 24px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .more-btn {
+      color: #e50914;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .more-btn:hover {
+      text-decoration: underline;
+    }
+
+    .horizontal-row {
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      padding-bottom: 10px;
+      scroll-behavior: smooth;
+    }
+
+    .channel-item { 
+      flex: 0 0 150px;
+      aspect-ratio: 2/3;
+      cursor: pointer; 
+      display: flex; 
+      flex-direction: column;
+      background: var(--card-bg); 
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid transparent;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    .channel-item:hover { 
+      transform: translateY(0px);
+      border-color: var(--primary-color);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+    }
+
+    .poster-box {
+      position: relative;
+      width: 100%;
+      height: 80%;
+      background: #151515;
+    }
+
+    .poster-box img { 
+      width: 100%;
+      height: 100%;
+      object-fit: contain; 
+    }
+
+    .channel-info {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 20%;
+      padding: 8px 10px;
+      background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .channel-title {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: center;
+      color: #fff;
+    }
+
+    .loading-text {
+      color: #888;
+      font-style: italic;
+      text-align: center;
+      padding: 40px;
+    }
+
+    /* --- Video Player Overlay Container --- */
+    #video-container { 
+      display: none; 
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 3000;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem;
+    }
+
+    select {
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 0.2rem center;
+      background-size: 0.85em;
+      padding-right: 0.75rem !important;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen select-none font-sans antialiased">
+
+  <!-- Header Navigation -->
+  <header>
+    <div class="logo" onclick="showMainHome()">StreamFlix</div>
+    <div class="search-box">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="text" id="searchInput" placeholder="Search series, movies...">
+    </div>
+  </header>
+
+  <!-- Main Content Areas (Category Rows) -->
+  <div id="main-content">
+    <div id="loading-spinner" class="loading-text">Loading...</div>
+
+    <div id="sections-container" class="hidden">
+      <!-- Live TV Section -->
+      <div class="section-header">
+        <div class="section-title">Live TV</div>
+        <div class="more-btn" onclick="showCategoryAll('livetv')">More <i class="fa-solid fa-chevron-right text-xs"></i></div>
+      </div>
+      <div id="livetv-row" class="horizontal-row no-scrollbar"></div>
+
+      <!-- Movies Section -->
+      <div class="section-header">
+        <div class="section-title">Movies</div>
+        <div class="more-btn" onclick="showCategoryAll('movies')">More <i class="fa-solid fa-chevron-right text-xs"></i></div>
+      </div>
+      <div id="movies-row" class="horizontal-row no-scrollbar"></div>
+
+      <!-- Series Section -->
+      <div class="section-header">
+        <div class="section-title">Series</div>
+        <div class="more-btn" onclick="showCategoryAll('series')">More <i class="fa-solid fa-chevron-right text-xs"></i></div>
+      </div>
+      <div id="series-row" class="horizontal-row no-scrollbar"></div>
+    </div>
+
+    <!-- Category Full Grid View (When More is clicked) -->
+    <div id="category-all-container" class="hidden">
+      <div class="flex items-center justify-between mb-6">
+        <h2 id="category-all-title" class="text-2xl font-bold">စာရင်းအားလုံး</h2>
+        <button onclick="showMainHome()" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm cursor-pointer"><i class="fa-solid fa-arrow-left mr-2"></i></button>
+      </div>
+      <div id="category-all-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4"></div>
+    </div>
+
+    <!-- Search Results Container -->
+    <div id="search-results-container" class="hidden">
+      <h2 class="text-xl font-bold mb-4">ရှာဖွေမှု ရလဒ်များ</h2>
+      <div id="search-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4"></div>
+    </div>
+  </div>
+
+  <!-- Series/Detail Page View -->
+  <div id="detail-view" class="hidden max-w-7xl mx-auto px-6 py-8" style="margin-top: 80px;">
+    
+    <!-- Back Button added here -->
+    <div class="mb-6">
+      <button onclick="goBackToCategoryAll()" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm cursor-pointer inline-flex items-center gap-2">
+        <i class="fa-solid fa-arrow-left"></i></button>
+    </div>
+
+    <div class="flex flex-col lg:flex-row gap-8 mb-8">
+      <div class="flex-shrink-0">
+        <div class="relative w-64 h-96 rounded-lg overflow-hidden shadow-lg border border-gray-800">
+          <img id="detail-poster" alt="Poster" class="w-full h-full object-cover" src="">
+        </div>
+      </div>
+      <div class="flex-1">
+        <h1 id="detail-title" class="text-3xl lg:text-4xl font-bold text-white mb-4">Title</h1>
+      </div>
+    </div>
+
+    <!-- Episodes / Items List Container -->
+    <div class="mt-8">
+      <h3 id="list-heading-title" class="text-xl font-bold text-white mb-4 border-l-4 border-red-600 pl-3">Episodes</h3>
+      <div id="episodes-list" class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700"></div>
+    </div>
+  </div>
+
+  <!-- Integrated Custom Video Player Container -->
+  <div id="video-container" class="select-none">
+    <div class="w-full max-w-5xl bg-slate-900/90 border border-slate-800/80 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col backdrop-blur-xl relative">
+
+      <!-- Video Title Header -->
+      <div class="px-5 py-3.5 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/80 backdrop-blur-md pr-5">
+        <div class="flex items-center space-x-3 overflow-hidden">
+          <div class="relative flex items-center justify-center flex-shrink-0">
+            <div class="w-2.5 h-2.5 bg-sky-400 rounded-full z-10"></div>
+            <div class="absolute w-4 h-4 bg-sky-400/50 rounded-full animate-ping"></div>
+          </div>
+          <h1 id="videoTitle" class="text-sm sm:text-base md:text-lg font-semibold tracking-wide text-slate-100 truncate">Loading title...</h1>
+        </div>
+        <div id="formatBadge" class="text-[10px] sm:text-xs px-3 py-1 bg-slate-800/80 text-sky-400 rounded-full border border-sky-500/30 font-mono font-semibold flex-shrink-0 ml-2">AUTO</div>
+      </div>
+
+      <!-- Player Controls Wrapper -->
+      <div id="playerContainer" class="relative group bg-black aspect-video flex items-center justify-center overflow-hidden">
+        <video id="tv-player" class="w-full h-full object-contain cursor-pointer" playsinline autoplay poster="https://i.postimg.cc/0NcB0R4p/SMPTE.png" crossorigin="anonymous"></video>
+        <div id="clickOverlay" class="absolute inset-0 z-10"></div>
+
+        <!-- CENTER OVERLAY CONTROLS -->
+        <div id="centerControls" class="absolute z-20 flex items-center justify-center space-x-5 sm:space-x-8 transition-all duration-300 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
+          <button id="rewind15Btn" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-950/60 border border-slate-700/50 text-slate-200 hover:text-sky-400 flex items-center justify-center backdrop-blur-md shadow-xl focus:outline-none cursor-pointer" title="Backward 15s">
+            <i class="fa-solid fa-rotate-left text-xs sm:text-base"></i>
+          </button>
+          <button id="centerPlayBtn" class="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr from-sky-500 to-cyan-400 text-slate-950 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.5)] focus:outline-none cursor-pointer" title="Play/Pause">
+            <i id="centerPlayIcon" class="fa-solid fa-play text-lg sm:text-2xl ml-0.5"></i>
+          </button>
+          <button id="forward15Btn" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-950/60 border border-slate-700/50 text-slate-200 hover:text-sky-400 flex items-center justify-center backdrop-blur-md shadow-xl focus:outline-none cursor-pointer" title="Forward 15s">
+            <i class="fa-solid fa-rotate-right text-xs sm:text-base"></i>
+          </button>
+        </div>
+
+        <!-- Custom Controls Bar -->
+        <div id="controlsBar" class="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent pt-6 pb-2 px-3 sm:px-4 flex flex-col gap-1.5 transition-all duration-300 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
+          
+          <div class="relative w-full flex items-center group/timeline py-1 cursor-pointer">
+            <div class="w-full h-1 bg-slate-800/80 rounded-full overflow-hidden relative group-hover/timeline:h-2 transition-all">
+              <div id="bufferBar" class="absolute top-0 left-0 h-full bg-slate-700/60 w-0 transition-all duration-200"></div>
+              <div id="progressBar" class="absolute top-0 left-0 h-full bg-gradient-to-r from-sky-500 to-cyan-400 w-0 transition-all duration-75 shadow-[0_0_8px_rgba(56,189,248,0.7)]"></div>
+            </div>
+            <input id="seekBar" type="range" min="0" max="100" value="0" step="0.1" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+          </div>
+
+          <div class="flex items-center justify-between text-slate-300 text-xs">
+            <div class="flex items-center space-x-2 sm:space-x-3">
+              <button id="playBtn" class="hover:text-sky-400 p-1 focus:outline-none cursor-pointer" title="Play/Pause"><i id="playIcon" class="fa-solid fa-play text-sm w-4 text-center"></i></button>
+              
+              <div class="flex items-center space-x-1 group/vol">
+                <button id="muteBtn" class="hover:text-sky-400 p-1 focus:outline-none cursor-pointer" title="Mute/Unmute"><i id="muteIcon" class="fa-solid fa-volume-high text-xs w-4 text-center"></i></button>
+                <div class="w-10 sm:w-0 overflow-hidden sm:group-hover/vol:w-16 transition-all duration-300 flex items-center">
+                  <input id="volumeSlider" type="range" min="0" max="1" step="0.05" value="1" class="w-10 sm:w-14 h-1 accent-sky-400 cursor-pointer">
+                </div>
+              </div>
+
+              <div class="text-[10px] sm:text-xs font-mono text-slate-400">
+                <span id="currentTime" class="text-slate-200">0:00</span> / <span id="duration">0:00</span>
+              </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <select id="qualitySelect" class="bg-slate-900 border border-slate-700 text-[10px] text-sky-400 px-2.5 py-0.5 rounded-lg cursor-pointer focus:outline-none">
+                <option value="auto">Auto</option>
+              </select>
+              <button id="fullscreenBtn" class="hover:text-sky-400 p-1 focus:outline-none cursor-pointer" title="Fullscreen"><i class="fa-solid fa-expand text-xs"></i></button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- External JavaScript Link -->
+  <script src="script.js"></script>
+</body>
+</html>
